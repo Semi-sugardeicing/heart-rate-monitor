@@ -6,7 +6,7 @@ local.properties
 # 构建产物
 build/
 .gradle/
-*.apk
+/*.apk
 *.aab
 
 # IDE
