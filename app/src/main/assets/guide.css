@@ -1,0 +1,108 @@
+/* ============================================================
+   心率接收 · 新手引导（聚光灯 / coach mark）
+   做法：整屏盖一层半透明黑，在目标控件那儿挖一个圆角洞，
+        洞的边框是蓝色、带呼吸光晕，旁边挂一个白色气泡写说明。
+   一次只讲一块，点「下一步」或点高亮的那块往下走。
+   ============================================================ */
+
+/* ---------- 遮罩 ---------- */
+.tour {
+  position: fixed; inset: 0; z-index: 900;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .22s var(--ease), visibility .22s;
+}
+.tour.is-on { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* 整屏黑罩，洞用 clip-path 挖在 .tour-spot 上 */
+.tour-mask {
+  position: absolute; inset: 0;
+  background: rgba(14, 16, 20, .66);
+  /* 洞的位置由 JS 写 --x --y --w --h --r，这里是兜底（没洞时全黑） */
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* ---------- 高亮洞 ---------- */
+.tour-spot {
+  position: absolute;
+  left: var(--x, 0); top: var(--y, 0);
+  width: var(--w, 0); height: var(--h, 0);
+  border-radius: var(--r, 14px);
+  pointer-events: none;
+  box-shadow: 0 0 0 2px #2B6EF6, 0 0 0 4px rgba(43, 110, 246, .28), 0 0 26px 6px rgba(43, 110, 246, .35);
+  animation: spotPulse 1.8s var(--ease) infinite;
+}
+@keyframes spotPulse {
+  0%, 100% { box-shadow: 0 0 0 2px #2B6EF6, 0 0 0 4px rgba(43, 110, 246, .22), 0 0 22px 4px rgba(43, 110, 246, .28); }
+  50%      { box-shadow: 0 0 0 2px #2B6EF6, 0 0 0 7px rgba(43, 110, 246, .10), 0 0 34px 10px rgba(43, 110, 246, .40); }
+}
+
+/* 点高亮那块也能继续：盖一个透明可点的层，位置跟洞一样 */
+.tour-hit {
+  position: absolute;
+  left: var(--x, 0); top: var(--y, 0);
+  width: var(--w, 0); height: var(--h, 0);
+  border-radius: var(--r, 14px);
+  background: transparent; border: 0; padding: 0; margin: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- 气泡 ---------- */
+.tour-tip {
+  position: absolute;
+  left: 16px; right: 16px;
+  max-width: 340px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 34px rgba(10, 12, 16, .28), 0 1px 2px rgba(10, 12, 16, .12);
+  padding: 16px 16px 14px;
+  transition: top .2s var(--ease);
+}
+.tour-tip.is-below { top: var(--tipTop, auto); }
+.tour-tip.is-above { bottom: var(--tipBottom, auto); }
+
+.tour-tip .step {
+  font-family: var(--num); font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; color: #2B6EF6;
+}
+.tour-tip .title {
+  margin-top: 6px; font-size: 16px; font-weight: 700;
+  letter-spacing: -.01em; color: var(--text); line-height: 1.35;
+}
+.tour-tip .desc {
+  margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--muted);
+}
+.tour-tip .desc b { color: #2B6EF6; font-weight: 600; }
+.tour-tip .desc em { font-style: normal; color: var(--text); font-weight: 600; }
+
+.tour-tip .foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 14px; gap: 10px;
+}
+.tour-tip .dots { display: flex; gap: 5px; }
+.tour-tip .dots i {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--line-strong); display: block;
+  transition: background .2s, width .2s;
+}
+.tour-tip .dots i.on { background: #2B6EF6; width: 16px; border-radius: 3px; }
+.tour-tip .acts { display: flex; align-items: center; gap: 6px; }
+.tour-skip {
+  height: 44px; min-width: 62px; padding: 0 12px; border-radius: var(--radius-pill);
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.tour-next {
+  height: 44px; min-width: 84px; padding: 0 18px; border-radius: var(--radius-pill);
+  background: #2B6EF6; color: #fff; font-size: 14px; font-weight: 700;
+  transition: transform .12s var(--ease), background .15s;
+}
+.tour-next:active { transform: scale(.97); background: #1F58CC; }
+.tour-next.is-done { background: var(--text); }
+
+/* 引导层出现时，底下的页面别被误点 */
+.tour.is-on ~ * { pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot { animation: none; }
+}
