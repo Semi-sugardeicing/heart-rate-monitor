@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-view="portrait">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#F2F3F5">
+<meta name="dsh-design" content="app 361x794">
+<title>接收 · 心率接收</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="guide.css">
+<link rel="stylesheet" href="report.css">
+<style>
+/* ===== 首页：监护仪主视图 =====
+   竖屏 / 横屏两套排法：竖屏心率在上、波形在下；
+   横屏（手动切，不跟手机转）心率贴左边、波形拉满全屏。 */
+.topbar-mid .tb-title { font-size: 16px; font-weight: 600; letter-spacing: .04em; }
+.topbar-mid .tb-pills { display: flex; align-items: center; gap: 6px; }
+
+/* ---- 已连接时右上角两个按钮 ---- */
+.top-actions { display: flex; gap: 2px; }
+
+/* ---- 主体：竖屏默认 ---- */
+.screen .live-body {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+}
+
+/* 心率大字 */
+.hr-head { text-align: center; padding: 6px 20px 0; flex-shrink: 0; }
+.hr-line {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  line-height: 1;
+}
+.hr-num {
+  font-family: var(--num);
+  font-size: clamp(48px, 14vw, 64px);
+  font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.03em;
+  color: var(--hr-normal);
+  transition: color .4s var(--ease);
+}
+.hr-num.is-low { color: var(--hr-low); }
+.hr-num.is-high, .hr-num.is-off { color: var(--hr-high); }
+.hr-ico { width: 20px; height: 20px; flex-shrink: 0; color: var(--hr-normal); }
+.hr-unit { font-family: var(--font); font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--muted); }
+.hr-line.is-off .hr-ico { color: var(--hr-high); }
+.hr-sub {
+  margin-top: 10px; font-size: 13px; color: var(--muted); font-weight: 500;
+  letter-spacing: .02em; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.hr-sub .tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  background: var(--surface-2); color: var(--muted);
+}
+.hr-sub .tag.is-normal { background: color-mix(in srgb, var(--ok) 12%, var(--surface)); color: var(--ok); }
+.hr-sub .tag.is-off { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger); }
+
+/* 心动周期节拍器（小圆点跟着跳） */
+.beat-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hr-normal); display: inline-block; }
+.beat-dot.is-beat { animation: beat .82s var(--ease); }
+@keyframes beat { 0% { transform: scale(1); opacity: 1; } 18% { transform: scale(1.9); } 100% { transform: scale(1); } }
+
+/* ---- 心电图区：白底黑线，跟图标一致 ---- */
+.ecg-wrap {
+  flex: 1; min-height: 0;
+  margin: 12px 16px 0;
+  display: flex; flex-direction: column;
+}
+.ecg-box {
+  position: relative; flex: 1; min-height: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition: border-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.ecg-box::after {
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 56px;
+  background: linear-gradient(90deg, transparent, var(--surface) 92%);
+  pointer-events: none;
+}
+/* 断线：边框变红、整块呼吸闪 */
+.ecg-box.is-off {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  animation: offPulse 1.4s var(--ease) infinite;
+}
+@keyframes offPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 0%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent); }
+}
+.ecg-canvas { display: block; width: 100%; height: 100%; }
+.ecg-corner {
+  position: absolute; top: 10px; left: 12px;
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--num); font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  color: var(--muted);
+  pointer-events: none;
+}
+.ecg-corner .ch { color: var(--text); font-size: 13px; letter-spacing: .08em; }
+.ecg-bpm-ghost {
+  position: absolute; right: 12px; bottom: 10px;
+  font-family: var(--num); font-size: 12px; font-weight: 600;
+  color: var(--faint); letter-spacing: .04em; pointer-events: none;
+}
+.ecg-bpm-ghost b { color: var(--text); font-size: 13px; font-weight: 700; }
+/* 断线覆盖在波形上 */
+.ecg-off {
+  position: absolute; inset: 0; z-index: 3;
+  display: none; align-items: center; justify-content: center; flex-direction: column; gap: 6px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  text-align: center; padding: 0 24px;
+}
+.ecg-box.is-off .ecg-off { display: flex; }
+.ecg-off .t1 { font-size: 16px; font-weight: 700; color: var(--danger); letter-spacing: .02em; }
+.ecg-off .t2 { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+/* ---- 三个小数据 ---- */
+.mini-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 0; margin: 12px 16px 0; flex-shrink: 0;
+}
+.mini-stat { text-align: center; padding: 8px 0; position: relative; }
+.mini-stat + .mini-stat::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 1px;
+  background: var(--line);
+}
+.mini-stat .k { font-size: 13px; color: var(--muted); letter-spacing: .04em; font-weight: 500; }
+.mini-stat .v {
+  margin-top: 5px; font-family: var(--num); font-size: 22px; font-weight: 700;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em; line-height: 1;
+}
+.mini-stat .v small { font-family: var(--font); font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+
+/* ---- 底部提示 + 主按钮 ---- */
+.hint {
+  display: flex; align-items: flex-start; gap: 7px;
+  padding: 0 24px; margin-top: 10px; flex-shrink: 0;
+  font-size: 13px; line-height: 1.5; color: var(--muted);
+}
+.hint svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+.hint b { color: var(--text); font-weight: 600; }
+
+/* 底部按钮：设置、停止接收（停在大右边）；横竖切换只在右上角一个 */
+.btn-row {
+  display: flex; align-items: stretch; gap: 10px;
+  padding: 10px 16px 4px; flex-shrink: 0;
+}
+.btn-row .cta { min-height: 54px; }
+.btn-row .icon-btn.sq {
+  width: 54px; height: 54px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.btn-row .icon-btn.sq svg { width: 22px; height: 22px; }
+
+/* ============================================================
+   图表区：实时 / 平均两张卡，横屏那两屏用
+   竖向堆叠，各自占一块；颜色都挂在 --hr-high 上，随心率变色
+   ============================================================ */
+.charts {
+  display: none;
+  flex: 1 1 0; min-height: 0;
+  flex-direction: column; gap: 10px;
+  padding: 4px 12px 4px;
+}
+.chart-card {
+  flex: 1 1 0; min-height: 0;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+/* 平均那张：不描边、浅灰底，跟实时那张区分开 */
+.chart-card.is-tinted {
+  border-color: transparent;
+  background: var(--surface-2);
+}
+.card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; flex-shrink: 0;
+}
+.card-title {
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  color: var(--muted);
+}
+.chart-card.is-tinted .card-title { color: var(--text); }
+.card-sub {
+  font-size: 11px; color: var(--muted);
+  font-family: var(--num); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.spark {
+  display: block; width: 100%; flex: 1 1 0; min-height: 26px;
+  overflow: visible;
+}
+.spark polyline {
+  fill: none; stroke: var(--hr-high);
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+/* 平均那张：用虚线和低透明度，像趋势而不是实时 */
+.spark.is-dots polyline {
+  stroke: var(--muted);
+  stroke-width: 2.4;
+  stroke-dasharray: 3 4;
+  opacity: .85;
+}
+html[data-view="landscape"] .chart-card { padding: 8px 12px 6px; gap: 4px; }
+html[data-view="landscape"] .chart-card .spark { min-height: 20px; }
+html[data-view="landscape"] .chart-card .card-foot b { font-size: 20px; }
+.card-foot {
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.card-foot b {
+  font-family: var(--num); font-size: 22px; font-weight: 700;
+  line-height: 1; letter-spacing: -.02em;
+  color: var(--hr-normal);
+}
+.chart-card:not(.is-tinted) .card-foot b { color: var(--accent); }
+.card-foot small {
+  font-family: var(--font); font-size: 11px; font-weight: 500;
+  color: var(--muted);
+}
+.foot-tag {
+  margin-left: auto; flex-shrink: 0;
+  padding: 2px 7px; border-radius: var(--radius-pill);
+  font-size: 10px; font-weight: 700;
+  background: color-mix(in srgb, var(--ok) 12%, var(--surface));
+  color: var(--ok);
+}
+.foot-tag.is-muted {
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* 横屏：图表 | 小数据 | 按钮（左边那块删空了，图表从最左边吃满） */
+html[data-view="landscape"] .screen .live-body {
+  display: grid;
+  grid-template-columns: 1fr 120px 92px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 6px 14px;
+  padding: 4px 12px 4px;
+  align-items: stretch;
+  flex: 1 1 0; min-height: 0;
+}
+html[data-view="landscape"] .charts   { grid-column: 1; grid-row: 1 / 4; display: flex; flex: none; min-height: 0; padding: 0; }
+html[data-view="landscape"] .mini-stats { grid-column: 2; grid-row: 1 / 4; }
+html[data-view="landscape"] .hint     { display: none; }
+html[data-view="landscape"] .btn-row  { grid-column: 3; grid-row: 1 / 4; }
+html[data-view="landscape"] .ecg-wrap { display: none; }
+/* 左边那块整个不显示了（占位 div 还在，只是不占格子，等新主意再说） */
+html[data-view="landscape"] .hr-head {
+  display: flex; flex-direction: column; justify-content: center;
+  align-items: flex-start; gap: 6px;
+  text-align: left; padding: 0; min-width: 0;
+}
+html[data-view="landscape"] .hr-num { font-size: clamp(46px, 13vh, 72px); }
+html[data-view="landscape"] .hr-ico { width: 20px; height: 20px; }
+html[data-view="landscape"] .hr-sub { flex-wrap: wrap; margin-top: 0; row-gap: 4px; justify-content: flex-start; }
+/* 左栏删空了，先留白占位，等新主意 */
+html[data-view="landscape"] .hr-head.is-empty { min-height: 100%; }
+/* 放在最后：横屏把心率块彻底隐藏，数字只在图表卡里出现。
+   前面那条 .hr-head 设了 display:flex，同优先级下必须后写才能覆盖。 */
+html[data-view="landscape"] .hr-head { display: none; }
+
+html[data-view="landscape"] .ecg-wrap { margin: 0; min-width: 0; min-height: 0; }
+
+html[data-view="landscape"] .mini-stats {
+  display: flex; flex-direction: column; justify-content: center;
+  margin: 0; gap: 0; min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface);
+}
+html[data-view="landscape"] .mini-stat { padding: 8px 10px; text-align: left; }
+html[data-view="landscape"] .mini-stat .k { font-size: 12px; white-space: nowrap; }
+html[data-view="landscape"] .mini-stat .v { font-size: 18px; margin-top: 1px; }
+html[data-view="landscape"] .mini-stat .v small { font-size: 12px; }
+html[data-view="landscape"] .mini-stat + .mini-stat::before {
+  left: 10px; right: 10px; top: 0; bottom: auto; width: auto; height: 1px;
+}
+
+html[data-view="landscape"] .hint { display: none; }
+
+html[data-view="landscape"] .btn-row {
+  display: flex; flex-direction: column;
+  padding: 0; gap: 8px; min-width: 0;
+}
+html[data-view="landscape"] .btn-row .icon-btn.sq {
+  order: -1;
+  width: 100%; height: auto; flex: 0 0 46px; border-radius: var(--radius);
+}
+html[data-view="landscape"] .btn-row .icon-btn.sq svg { width: 20px; height: 20px; }
+html[data-view="landscape"] .btn-row .cta {
+  flex: 1 1 auto; width: 100%; min-height: 0;
+  flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.2;
+  padding: 4px;
+}
+html[data-view="landscape"] .btn-row .cta svg { width: 20px; height: 20px; }
+
+/* ============================================================
+   横屏：把整块界面（只有一份 DOM，不复制元素）整体旋转 90°。
+   - 数据层：data-view="landscape" 决定用哪套内部排版（已有）
+   - 几何层：main 变成横的 794x361，再转 90°，转完正好是竖屏的 361x794
+   实测值：rotate(90deg) translateY(-100%)
+   ============================================================ */
+html[data-view="landscape"],
+html[data-view="landscape"] body {
+  overflow: hidden;
+}
+/* 横屏时：主界面和弹层一起转，保证弹窗跟界面同一个方向 */
+html[data-view="landscape"] .screen,
+html[data-view="landscape"] .sheet {
+  /* 先按横的尺寸铺开：宽高互换 */
+  width: 794px; height: 361px;
+  left: 0; top: 0; right: auto; bottom: auto;
+  transform-origin: 0 0;
+  transform: rotate(90deg) translateY(-100%);
+  position: fixed;
+}
+/* 弹层转过来之后：卡片按转完的方向按比例居中，别撑满 */
+html[data-view="landscape"] .sheet {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+html[data-view="landscape"] .sheet-card {
+  width: 300px;
+  max-width: 300px;
+  flex: none;
+}
+</style>
+<script src="crash.js"></script>
+</head>
+<body data-level="live">
+
+<!-- ======================= 首页：接收中 ======================= -->
+<main class="screen is-active" id="screen-live">
+
+  <header class="topbar">
+    <a class="icon-btn back-btn" href="#" data-back>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
+    <div class="topbar-mid">
+      <div class="tb-title">心率接收</div>
+      <div class="tb-pills">
+        <span class="pill is-live"><i class="dot"></i>已连接</span>
+        <span class="pill" id="phonePill">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="3"/><path d="M9 4V2h6v2"/><path d="M12 11v3"/></svg>
+          本机 · <span id="phonePct">--</span>%
+        </span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <!-- 横竖屏：默认隐藏，在设置页联网点「协议」那行 7 次才解锁 -->
+      <button class="icon-btn" id="viewBtn" aria-label="切换横屏" hidden>
+        <svg id="viewIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="12" rx="2.5"/>
+        </svg>
+      </button>
+      <a class="icon-btn glass-btn" href="settings.html" aria-label="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2"/>
+          <path d="M19.4 13.9a7.8 7.8 0 0 0 0-3.8l2-1.5-2-3.4-2.4 1a7.8 7.8 0 0 0-3.3-1.9L13.4 2h-2.8l-.3 2.3a7.8 7.8 0 0 0-3.3 1.9l-2.4-1-2 3.4 2 1.5a7.8 7.8 0 0 0 0 3.8l-2 1.5 2 3.4 2.4-1a7.8 7.8 0 0 0 3.3 1.9l.3 2.3h2.8l.3-2.3a7.8 7.8 0 0 0 3.3-1.9l2.4 1 2-3.4z"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="live-body">
+
+    <!-- 心率大字：竖屏在上、横屏在左 -->
+    <section class="hr-head">
+      <div class="hr-line" id="hrLine">
+        <svg class="hr-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.8-9.4-9A5.5 5.5 0 0 1 12 6.4 5.5 5.5 0 0 1 21.4 12C19.5 16.2 12 21 12 21z"/></svg>
+        <span class="hr-num" id="hrNum">--</span>
+        <span class="hr-unit">bpm</span>
+      </div>
+      <div class="hr-sub">
+        <i class="beat-dot" id="beatDot"></i>
+        <span id="hrState">窦性心律 · 静息</span>
+        <span class="tag is-normal" id="hrTag">正常</span>
+      </div>
+    </section>
+
+    <!-- 心电图：白底黑线，像医院监护仪但跟图标一个调 -->
+    <section class="ecg-wrap">
+      <div class="ecg-box" id="ecgBox">
+        <canvas class="ecg-canvas" id="ecg" width="720" height="560" role="img" aria-label="实时心率波形，当前每分钟 78 次"></canvas>
+        <div class="ecg-corner"><span class="ch">II</span><span id="ecgScale">25 mm/s · 10 mm/mV</span></div>
+        <div class="ecg-bpm-ghost">HR <b id="ghostBpm">--</b></div>
+        <div class="ecg-off" id="ecgOff">
+          <div class="t1">信号中断</div>
+          <div class="t2" id="offText">2 秒</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 竖屏：三格数据，在波形下面 -->
+    <div class="mini-stats">
+      <div class="mini-stat"><div class="k">最近最低</div><div class="v" id="statMin">--<small>bpm</small></div></div>
+      <div class="mini-stat"><div class="k">平均</div><div class="v" id="statAvg">--<small>bpm</small></div></div>
+      <div class="mini-stat"><div class="k">已接收</div><div class="v" id="statDur">--<small>分钟</small></div></div>
+    </div>
+
+    <div class="hint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.4"/></svg>
+      <span>手表端请先打开应用列表里的 <b>「心率广播」</b>，并保持在<b>全智能模式</b>下。</span>
+    </div>
+
+    <div class="btn-row">
+      <!-- 竖屏：设置在左，停止接在右边；横屏：设置在上，停止在下 -->
+      <a class="icon-btn sq" href="settings.html" aria-label="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 6h14M5 12h14M5 18h14"/>
+          <circle cx="9" cy="6" r="2.4"/>
+          <circle cx="15" cy="12" r="2.4"/>
+          <circle cx="9" cy="18" r="2.4"/>
+        </svg>
+      </a>
+      <button class="cta" id="stopBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>
+        <span>停止接收</span>
+      </button>
+    </div>
+    <!-- 竖屏：图表区，两张卡片上下排 -->
+    <div class="charts">
+      <!-- 实时心率 -->
+      <section class="chart-card">
+        <div class="card-head">
+          <span class="card-title">实时心率</span>
+          <span class="card-sub">10 秒</span>
+        </div>
+        <svg class="spark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points="0,50 12,48 20,44 26,50 34,50 38,13 44,58 50,46 58,30 70,20 82,36 88,46 96,49 104,43 110,49 118,49 122,12 128,57 134,45 142,29 154,20 166,36 172,46 180,49 188,42 194,49 202,49 206,14 212,57 218,45 226,30 238,21 250,36 256,46 264,48 272,42 278,48 286,49 300,45"/>
+        </svg>
+        <div class="card-foot"><b id="chartNow">--</b><small>bpm</small><span class="foot-tag" id="chartTag">等待</span></div>
+      </section>
+
+      <!-- 平均心率：同一套样子，换个浅色底和圆点画法 -->
+      <section class="chart-card is-tinted">
+        <div class="card-head">
+          <span class="card-title">平均心率</span>
+          <span class="card-sub">本次接收 · 12 分钟</span>
+        </div>
+        <svg class="spark is-dots" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points="10,44 68,42 126,38 184,34 242,30 292,27"/>
+        </svg>
+        <div class="card-foot"><b id="chartAvg">--</b><small>bpm</small><span class="foot-tag is-muted" id="chartRange">--</span></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- 收尾弹层：停止 / 断线后问要不要保存 -->
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet-card">
+    <div class="sheet-title" id="sheetTitle">信号中断</div>
+    <div class="sheet-desc" id="sheetDesc">这次接了 12 分钟。</div>
+    <div class="sheet-stats">
+      <div><b id="shAvg">74</b><span>平均</span></div>
+      <div><b id="shMin">62</b><span>最低</span></div>
+      <div><b id="shMax">96</b><span>最高</span></div>
+    </div>
+    <button class="sheet-primary" id="sheetSave" type="button">保存到相册</button>
+    <button class="sheet-ghost" id="sheetSkip" type="button">不用了，回去</button>
+  </div>
+</div>
+
+<!-- 保存成功的小提示 -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ============================================================
+   设计稿的假数据，只为了看效果。
+   真网页版会把 tick() 换成蓝牙收到的心跳，断线由设备回调触发。
+   ============================================================ */
+(function () {
+  const root = document.documentElement;
+  const canvas = document.getElementById('ecg');
+  const ctx = canvas.getContext('2d');
+  const hrNum = document.getElementById('hrNum');
+  const hrLine = document.getElementById('hrLine');
+  const hrSub = document.getElementById('hrState');
+  const beatDot = document.getElementById('beatDot');
+  const ghostBpm = document.getElementById('ghostBpm');
+  const hrTag = document.getElementById('hrTag');
+  const ecgBox = document.getElementById('ecgBox');
+  const offText = document.getElementById('offText');
+
+  /* ---- 横竖屏：手动切，不跟手机转 ---- */
+  const viewBtn = document.getElementById('viewBtn');
+  const viewIco = document.getElementById('viewIco');
+  const icoPortrait = '<rect x="7" y="3" width="10" height="18" rx="2.5"/>';
+  const icoLandscape = '<rect x="3" y="6" width="18" height="12" rx="2.5"/>';
+  /* 横竖屏切换：只改 html 的 data-view，CSS 里两套排法跟着走。
+     横屏是「手机不转、内容整体转 90°」，只有一份 DOM。
+     注意：横屏是开发者选项，没连点协议 7 次解锁之前，任何来源都会被强制成竖屏。 */
+  /* 开发者模式是否开启。所有进入横屏的路径都必须先过这一关。 */
+  function isDevMode() {
+    try { return localStorage.getItem('heart.dev') === '1'; } catch (e) { return false; }
+  }
+
+  function setView(next) {
+    /* 硬拦截：没开开发者模式，任何来源的 landscape 请求都改成 portrait。
+       防止 localStorage 残留、URL 参数、外部调用等绕过界面把横屏打开。 */
+    if (next === 'landscape' && !isDevMode()) next = 'portrait';
+    root.dataset.view = next;
+    const land = next === 'landscape';
+    viewIco.innerHTML = land ? icoPortrait : icoLandscape;
+    viewBtn.setAttribute('aria-label', land ? '切回竖屏' : '切换到横屏');
+    viewBtn.setAttribute('aria-pressed', String(land));
+    // 横屏是把整套界面用 CSS 转 90°，画布尺寸换了，等布局稳定再量一次
+    requestAnimationFrame(() => requestAnimationFrame(resize));
+    /* 注意：这里绝对不能调原生 setOrientation！
+       系统转屏 + CSS 再转一次 = 转了 180°，内容会倒过来。
+       方案就是「手机不转、内容转」，所以原生那边保持竖屏不动。 */
+    if (window.Native && window.Native.setOrientation) window.Native.setOrientation(false);
+  }
+  function toggleView() {
+    const next = root.dataset.view === 'landscape' ? 'portrait' : 'landscape';
+    setView(next);
+  }
+  /* 横屏按钮默认藏起来。设置页连点「协议」7 次会写 developer=true，
+     这里读一下，解锁了才显示。 */
+  function syncViewBtnVisible() {
+    let unlocked = false;
+    try { unlocked = localStorage.getItem('heart.dev') === '1'; } catch (e) {}
+    if (unlocked) {
+      viewBtn.removeAttribute('hidden');
+    } else {
+      viewBtn.setAttribute('hidden', '');
+      // 没解锁就保持竖屏
+      if (root.dataset.view === 'landscape') setView('portrait');
+    }
+  }
+  syncViewBtnVisible();
+
+  viewBtn.addEventListener('click', toggleView);
+
+  /* ---------- 手机电量：每 30 秒刷一次 ---------- */
+  (function initBattery() {
+    const pct = document.getElementById('phonePct');
+    const pill = document.getElementById('phonePill');
+    if (!pct) return;
+
+    function sync() {
+      let v = -1;
+      if (window.Native && window.Native.getPhoneBattery) {
+        v = window.Native.getPhoneBattery();
+      }
+      if (v >= 0) {
+        pct.textContent = v;
+        // 低于 20% 标红提醒
+        if (pill) pill.classList.toggle('is-low', v <= 20);
+      } else {
+        pct.textContent = '--';
+      }
+    }
+    sync();
+    setInterval(sync, 30000);
+  })();
+  /* 初始方向：以 HTML 上的 data-view 为准（设计台验证横屏时靠这个），
+     其次看设置页留下的标记，都没有就竖屏。 */
+  let startView = 'portrait';
+  if (isDevMode()) {
+    /* 只有开发者模式才允许横屏开局：先看 URL 参数 ?view=landscape，再看 HTML 上的 data-view */
+    try {
+      const q = new URLSearchParams(location.search).get('view');
+      if (q === 'landscape' || q === 'portrait') startView = q;
+      else if (root.dataset.view === 'landscape') startView = 'landscape';
+    } catch (e) {
+      if (root.dataset.view === 'landscape') startView = 'landscape';
+    }
+  }
+  /* 设置页留下的方向标记：没开发者模式直接丢掉，不让它生效 */
+  try {
+    const saved = localStorage.getItem('heart.orient');
+    if (saved) {
+      if (isDevMode() && (saved === 'landscape' || saved === 'portrait')) startView = saved;
+      localStorage.removeItem('heart.orient');
+    }
+  } catch (e) {}
+  setView(startView);
+
+  const DPR = 2;
+  let W = 0, H = 0;
+  let bpm = 0;
+  let bpmShown = 0;
+  let x = 0;
+  let prev = 0;
+
+  const SPEED = 30;      // 每秒多少 px，跟 25mm/s 纸速对得上
+  const BEAT_PX_BASE = 118;   // 75bpm 时一次心跳占多少 px（25mm/s 走纸对齐）
+  let BEAT_PX = BEAT_PX_BASE; // 实际用这个，跟着真实心率变
+  /* 走纸速度固定时，心跳越快，波形越密：beatPx ∝ 1/bpm */
+  function updateBeatPx(hr) {
+    if (!hr || hr < 30 || hr > 220) return;
+    BEAT_PX = Math.max(60, Math.min(320, BEAT_PX_BASE * (75 / hr)));
+  }
+  let pauseUntil = 0;
+
+  /* ---- 断线模拟：每 24 秒来一次 3 秒没信号，看告警长什么样 ---- */
+  let lastBeatAt = performance.now();
+  let offlineSince = 0;
+  let alerted = false;
+  const OFFLINE_AFTER = 1600;    // 多久没心跳先在界面上报警
+  const LOST_AFTER = 10000;      // 多久没心跳算真断开（震动 + 问保存）
+  const DEMO_OFFLINE_EVERY = 24000;
+  let nextDemoOffline = performance.now() + DEMO_OFFLINE_EVERY;
+
+  function resize() {
+    const el = canvas.parentElement;
+    // 用 clientWidth / clientHeight：画布所在的框自己不旋转（转的是整个页面），量出来就是准的
+    const w = el.clientWidth, h = el.clientHeight;
+    if (!w || !h) { requestAnimationFrame(resize); return; }
+    W = w; H = h;
+    canvas.width = Math.round(w * DPR);
+    canvas.height = Math.round(h * DPR);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    clear();
+    drawGrid();
+    seedWave();
+  }
+
+  function seedWave() {
+    const baseY = H * .58;
+    const amp = H * .40;
+    ctx.strokeStyle = css('--ecg-line', '#14151A');
+    ctx.lineWidth = 2.1;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let sx = 0; sx <= W; sx += 1.5) {
+      const u = (sx / BEAT_PX) % 1;
+      const sy = baseY + wave(u) * amp;
+      if (sx === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+    x = W;
+  }
+
+  function css(name, fallback) {
+    return getComputedStyle(root).getPropertyValue(name).trim() || fallback;
+  }
+
+  function clear() {
+    ctx.fillStyle = css('--surface', '#fff');
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawGrid() {
+    const minor = 8, major = 40;
+    const g = css('--ecg-grid', '#EBECEF');
+    const gm = css('--ecg-grid-major', '#DEDFE3');
+    ctx.lineWidth = .5;
+    for (let gx = 0; gx <= W; gx += minor) {
+      ctx.strokeStyle = (Math.round(gx) % major === 0) ? gm : g;
+      ctx.beginPath(); ctx.moveTo(gx + .5, 0); ctx.lineTo(gx + .5, H); ctx.stroke();
+    }
+    for (let gy = 0; gy <= H; gy += minor) {
+      ctx.strokeStyle = (Math.round(gy) % major === 0) ? gm : g;
+      ctx.beginPath(); ctx.moveTo(0, gy + .5); ctx.lineTo(W, gy + .5); ctx.stroke();
+    }
+  }
+
+  // 一个心动周期的形状（负值向上）
+  /* 每颗心跳的个体差异：R 波高度、T 波高度、整体基线偏移。
+     真数据开着时，由真实心率的变化驱动，波形就不会每拍都一样。 */
+  const morph = { r: 1, t: 1, base: 0, q: 1 };
+
+  function wave(u) {
+    const R = -.92 * morph.r;     // R 波（负值向上）
+    const T = -.26 * morph.t;     // T 波
+    if (u < .08) return morph.base * 0.2;
+    if (u < .17) return -smoothP(u, .08, .17) * .085;      // P
+    if (u < .23) return morph.base * 0.4;
+    if (u < .28) return lerp(0, .10 * morph.q, (u - .23) / .05);   // Q
+    if (u < .34) return lerp(.10 * morph.q, R, (u - .28) / .06);   // R
+    if (u < .40) return lerp(R, .16, (u - .34) / .06);             // S
+    if (u < .44) return lerp(.16, 0, (u - .40) / .04);
+    if (u < .56) return 0;                                  // ST 段
+    if (u < .76) return -smoothP(u, .56, .76) * Math.abs(T);        // T
+    return morph.base;
+  }
+  function smoothP(u, a, b) {
+    return Math.sin(Math.PI * (u - a) / (b - a)) ** 1.6;
+  }
+  function lerp(a, b, k) { return a + (b - a) * Math.max(0, Math.min(1, k)); }
+
+  let prevBeatKey = null;
+
+  function frame(now) {
+    const dt = Math.min(48, now - (prev || now));
+    prev = now;
+
+    /* ---------- 假信号（只在网页演示里跑，真机不跑） ---------- */
+    const isNative = !!(window.Native && window.Native.isNative);
+    if (!isNative && now > nextDemoOffline) {
+      // 演示：断 3 秒。真机上这段必须关掉，否则每 24 秒卡一次波形
+      lastBeatAt = now - OFFLINE_AFTER - 1;
+      nextDemoOffline = now + DEMO_OFFLINE_EVERY;
+    }
+    const off = now - lastBeatAt > OFFLINE_AFTER;
+    // 10 秒没心跳 = 真断开（跟设置里「多久算中断」分开：3 秒只是界面上报警）
+    if (now - lastBeatAt > LOST_AFTER && window.HRFinish) {
+      window.HRFinish('lost');
+    }
+
+    /* 开发者：手动钉住心率（优先级最高，用来测颜色/波形/告警） */
+    let fixHr = 0;
+    try {
+      const v = parseInt(localStorage.getItem('heart.fixhr') || '', 10);
+      if (!isNaN(v) && v >= 30 && v <= 200) fixHr = v;
+    } catch (e) {}
+
+    /* 假传感器模式：从连接页选了「假传感器」进来，用平滑的模拟心率跑 */
+    let fakeSensor = false;
+    try { fakeSensor = localStorage.getItem('heart.fake') === '1'; } catch (e) {}
+
+    if (fixHr) {
+      bpm = fixHr;
+      lastBeatAt = now;              // 别被判成断线
+    } else if (fakeSensor) {
+      // 一条平缓起伏的曲线，55~95 之间，不跳
+      const t = now / 1000;
+      const base = 72 + Math.sin(t / 7) * 9 + Math.sin(t / 2.3) * 3;
+      if (bpm <= 0) bpm = base;
+      else bpm += (base - bpm) * 0.05;
+      lastBeatAt = now;              // 别被判成断线
+    }
+
+    /* 开发者：强制断开模拟（进页面或用户切回来时触发一次） */
+    try {
+      const dropAt = parseInt(localStorage.getItem('heart.drop') || '0', 10);
+      if (dropAt && (now / 1000) > 0 && !window.__dropDone) {
+        window.__dropDone = true;
+        localStorage.removeItem('heart.drop');
+        setTimeout(() => {
+          lastBeatAt = performance.now() - LOST_AFTER - 1;
+        }, 1200);
+      }
+    } catch (e) {}
+
+    /* 有真实心率就一直用它；超过 6 秒没新数据才退回模拟 */
+    const real = window.__hrReal;
+    const hasReal = !fakeSensor && real && real.lastAt &&
+                    (now - real.lastAt) < 6000 && real.bpm > 0;
+    if (hasReal) {
+      bpm = real.bpm;
+    }
+
+    if (!off) {
+      if (!hasReal && now > pauseUntil) {
+        bpm += (Math.random() - .5) * .35;
+        bpm += (76 - bpm) * .004;
+        if (Math.random() < .004) pauseUntil = now + 900;
+      }
+      const beatMs = 60000 / bpm;
+      const beatKey = Math.floor(now / beatMs);
+      if (beatKey !== prevBeatKey) {
+        prevBeatKey = beatKey;
+        lastBeatAt = now;
+        // 记一次心跳：给收尾报告用
+        if (window.HRRec) window.HRRec.push(Math.round(bpmShown || bpm), Date.now());
+      }
+    }
+
+    const live = off ? 0 : (pauseUntil > now ? bpm * .82 : bpm);
+    if (!off) bpmShown += (live - bpmShown) * ((hasReal || fakeSensor) ? .22 : .06);
+
+    /* ---------- 波形的每拍差异（由真实心率驱动） ----------
+       心率升高：R 波略高、T 波压低、基线轻微上移；
+       心率下降：反之。再叠一点点随机，避免每拍完全一样。
+       没有真实数据时保持 1.0，还是原来那个示意波形。 */
+    if (hasReal) {
+      updateBeatPx(bpm);   // 心率快 -> 波形更密
+      const hrNorm = Math.max(-1, Math.min(1, (bpm - 70) / 30));  // 70bpm 为中心，±30 到边界
+      const targetR = 1 + hrNorm * 0.16;
+      const targetT = 1 - hrNorm * 0.22;
+      const targetBase = hrNorm * 0.012;
+      // 平滑跟随，别跳
+      morph.r += (targetR - morph.r) * 0.08;
+      morph.t += (targetT - morph.t) * 0.08;
+      morph.base += (targetBase - morph.base) * 0.08;
+      // 再叠一点点呼吸式的慢变化
+      const breath = Math.sin(now / 2600) * 0.03;
+      morph.r += (breath - 0) * 0.002;
+    }
+
+    /* ---------- 统计数字（有真实数据才更新） ---------- */
+    if (hasReal && window.HRRec) {
+      const r = window.HRRec;
+      const elMin = document.getElementById('statMin');
+      const elAvg = document.getElementById('statAvg');
+      const elNow = document.getElementById('chartNow');
+      const elAvg2 = document.getElementById('chartAvg');
+      const elRange = document.getElementById('chartRange');
+      const elTag = document.getElementById('chartTag');
+      const elDur = document.getElementById('statDur');
+      if (elMin && r.min < 999) elMin.innerHTML = Math.round(r.min) + '<small>bpm</small>';
+      if (elAvg && r.n > 0) elAvg.innerHTML = Math.round(r.sum / r.n) + '<small>bpm</small>';
+      if (elNow) elNow.textContent = Math.round(bpm);
+      if (elAvg2 && r.n > 0) elAvg2.textContent = Math.round(r.sum / r.n);
+      if (elRange && r.n > 0) elRange.textContent = Math.round(r.min) + '–' + Math.round(r.max);
+      if (elDur && r.start) {
+        const mins = Math.floor((Date.now() - r.start) / 60000);
+        elDur.innerHTML = (mins < 1 ? '<1' : mins) + '<small>分钟</small>';
+      }
+      if (elTag) {
+        const v = Math.round(bpm);
+        elTag.textContent = v < 60 ? '偏低' : (v > 100 ? '偏高' : '正常');
+      }
+    }
+
+    /* ---------- 大字和状态 ---------- */
+    const shown = Math.round(bpmShown);
+    /* 没数据时（bpmShown 还没跟上、或根本没心跳）统一显示 --，别显示 0 */
+    /* 有没有可显示的心率：必须有真实数据，或开发者模式里的假传感器/固定值 */
+    const srcOk = hasReal || fixHr > 0 || fakeSensor;
+    const noData = off || !srcOk;
+    hrNum.textContent = noData ? '--' : shown;
+    ghostBpm.textContent = noData ? '--' : shown;
+    hrNum.classList.toggle('is-high', !noData && shown >= 100);
+    hrNum.classList.toggle('is-low', !noData && shown < 60);
+    hrNum.classList.toggle('is-off', noData);
+    hrLine.classList.toggle('is-off', noData);
+    hrSub.textContent = noData ? '没有收到心跳' : '窦性心律 · 静息';
+    hrTag.textContent = noData ? (off ? '信号中断' : '等待') : (shown >= 100 ? '偏高' : shown < 60 ? '偏低' : '正常');
+    hrTag.classList.toggle('is-normal', !noData && !(shown >= 100 || shown < 60));
+    hrTag.classList.toggle('is-off', noData && off);
+    ecgBox.classList.toggle('is-off', off);
+    if (off) {
+      const sec = Math.max(1, Math.round((now - lastBeatAt) / 1000));
+      offText.textContent = sec + ' 秒没收到心跳';
+    }
+
+    /* ---------- 画波形：断线时线是断的，只有一小段 ---- */
+    const baseY = H * .58;
+    const amp = H * .40;
+    const steps = Math.max(1, Math.round(dt / 8));
+    const dx = SPEED * dt / steps;
+
+    ctx.strokeStyle = css('--ecg-line', '#14151A');
+    ctx.lineWidth = 2.1;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    if (off) {
+      // 断的时候：整屏只有基线上一小段虚线，不加新笔迹
+      if (Math.random() < .04 || x === 0) {
+        clear(); drawGrid();
+        ctx.save();
+        ctx.setLineDash([6, 10]);
+        ctx.globalAlpha = .22;
+        ctx.beginPath();
+        ctx.moveTo(0, baseY); ctx.lineTo(W, baseY);
+        ctx.stroke();
+        ctx.restore();
+        x = 0;
+      }
+    } else {
+      for (let s = 0; s < steps; s++) {
+        const x0 = x;
+        const x1 = x0 + dx;
+        if (x1 > W) { clear(); drawGrid(); seedWave(); continue; }
+        const u0 = (x0 / BEAT_PX) % 1;
+        const u1 = (x1 / BEAT_PX) % 1;
+        const y0 = baseY + wave(u0) * amp;
+        const y1 = baseY + wave(u1) * amp;
+        const segs = Math.abs(y1 - y0) > 3 ? 8 : 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        for (let k = 1; k <= segs; k++) {
+          const kk = k / segs;
+          const uu = (u0 + (u1 - u0) * kk + 1) % 1;
+          ctx.lineTo(x0 + (x1 - x0) * kk, baseY + wave(uu) * amp);
+        }
+        ctx.stroke();
+        x = x1;
+      }
+    }
+
+    /* ---------- 节拍点 ---------- */
+    if (!off) {
+      const key = Math.floor(now / (60000 / live));
+      if (beatDot.dataset.k !== String(key)) {
+        beatDot.dataset.k = String(key);
+        beatDot.classList.remove('is-beat');
+        void beatDot.offsetWidth;
+        beatDot.classList.add('is-beat');
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="native.js"></script>
+<script src="native-hook.js"></script>
+<script src="nav.js"></script>
+<script src="guide.js"></script>
+<script src="report.js"></script>
+<script>Tour.auto();</script>
+</body>
+</html>
