@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#F2F3F5">
+<meta name="dsh-design" content="app">
+<title>设置 · 心率接收</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<style>
+/* ===== 设置页：轻线条分组，不堆卡片 ===== */
+.settings-scroll {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding-bottom: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.group { padding: 0 24px; margin-top: 10px; }
+.group + .group { margin-top: 22px; }
+.group-title {
+  font-size: 12px; font-weight: 700; letter-spacing: .1em;
+  color: var(--muted); padding: 6px 0 4px;
+}
+.set-row { padding: 14px 0; }
+/* 开发者选项默认藏起来。用 display:none 显式写，不依赖 [hidden] 属性，
+   避免某些浏览器/布局把它忽略掉。 */
+.set-row[hidden] { display: none !important; }
+.group[hidden] { display: none !important; }
+.mini-btn {
+  padding: 8px 14px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--text);
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.mini-btn:active { transform: scale(.96); }
+.set-row:last-child { border-bottom: 1px solid var(--line); }
+.set-k { font-size: 15px; color: var(--text); }
+.set-d { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+.set-l { flex: 1; min-width: 0; }
+
+ /* 开关：轨道用 span.track，滑块用 span.knob（span 不吃 button 的全局样式） */
+.switch {
+  appearance: none; -webkit-appearance: none;
+  display: block; flex-shrink: 0; position: relative;
+  width: 44px; height: 44px; padding: 0; margin: 0;
+  border: 0; border-radius: 0;
+  background: none;
+}
+.switch .track {
+  display: block;
+  position: absolute; top: 9px; left: 0;
+  width: 44px; height: 26px; border-radius: 999px;
+  background: var(--surface-2);
+  transition: background .18s var(--ease);
+}
+.switch .knob {
+  display: block;
+  position: absolute; top: 12px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+  transition: transform .18s var(--ease);
+}
+.switch.is-on .track { background: var(--text); }
+.switch.is-on .knob { transform: translateX(18px); }
+
+/* 数值行 */
+.val-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0; border-bottom: 1px solid var(--line);
+}
+.val-row .k { font-size: 15px; }
+.val-row .v {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--num); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.val-row .v .unit { font-family: var(--font); font-size: 12px; color: var(--muted); font-weight: 500; }
+.stepper { display: flex; align-items: center; gap: 2px; }
+.stepper button {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--text);
+  transition: background .15s;
+}
+.stepper button:active { background: var(--surface-2); }
+.stepper button svg { width: 16px; height: 16px; }
+.stepper .n { min-width: 40px; text-align: center; font-family: var(--num); font-size: 17px; font-weight: 600; }
+
+/* 分段选择 */
+.seg {
+  display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.seg button {
+  height: 44px; min-width: 46px; padding: 0 12px; border-radius: var(--radius-pill);
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  transition: background .15s, color .15s;
+}
+.seg button.is-on { background: var(--text); color: var(--bg); }
+
+/* 目标区间预览 */
+.range-preview {
+  margin: 12px 0 0; padding: 14px 0 6px;
+  border-bottom: 1px solid var(--line);
+}
+.range-bar {
+  position: relative; height: 6px; border-radius: 3px;
+  background: var(--surface-2); overflow: hidden;
+}
+.range-bar .fill {
+  position: absolute; top: 0; bottom: 0; border-radius: 3px;
+  background: var(--text);
+}
+.range-bar .mark {
+  position: absolute; top: -4px; width: 2px; height: 14px;
+  background: var(--accent); border-radius: 1px;
+}
+.range-label {
+  display: flex; justify-content: space-between;
+  margin-top: 8px; font-family: var(--num); font-size: 11px; color: var(--muted);
+}
+.range-label b { color: var(--accent); font-weight: 700; }
+
+/* 设备卡 */
+.device-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 0; border-bottom: 1px solid var(--line);
+}
+.device-card .avatar {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--line);
+}
+.device-card .avatar svg { width: 20px; height: 20px; }
+.device-card .body { flex: 1; min-width: 0; }
+.device-card .name { font-size: 15px; font-weight: 600; }
+.device-card .meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.battery { display: flex; align-items: center; gap: 6px; font-family: var(--num); font-size: 13px; font-weight: 600; color: var(--muted); }
+.battery .b {
+  width: 26px; height: 12px; border-radius: 3px;
+  border: 1.5px solid var(--line-strong); position: relative; padding: 1.5px;
+}
+.battery .b::after {
+  content: ""; position: absolute; right: -4px; top: 3px;
+  width: 2px; height: 4px; border-radius: 0 1px 1px 0; background: var(--line-strong);
+}
+.battery .b i { display: block; height: 100%; width: 38%; border-radius: 1px; background: var(--muted); }
+
+/* 关于 */
+.about { padding: 14px 0 0; display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.about b { color: var(--text); font-weight: 600; font-family: var(--num); }
+
+/* 危险操作 */
+.danger-row {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 52px;
+  padding: 14px 0; border-top: 1px solid var(--line);
+  font-size: 14px; font-weight: 600; color: var(--danger);
+  background: none; cursor: pointer;
+}
+.danger-row:active { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+
+/* 试一下按钮 */
+.try-btn {
+  height: 44px; min-width: 88px; padding: 0 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface); border: 1px solid var(--line-strong);
+  font-size: 14px; font-weight: 600; color: var(--text);
+  flex-shrink: 0;
+  transition: background .15s, transform .12s var(--ease);
+}
+.try-btn:active { transform: scale(.97); background: var(--surface-2); }
+</style>
+</head>
+<body data-level="settings">
+
+<main class="screen is-active">
+  <header class="topbar">
+    <a class="icon-btn back-btn" href="#" data-back>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
+    <div class="topbar-mid"><div class="tb-title">设置</div></div>
+    <div style="width:46px"></div>
+  </header>
+
+  <div class="settings-scroll">
+
+    <!-- 设备 -->
+    <section class="group">
+      <div class="group-title">设备</div>
+      <div class="device-card">
+        <div class="avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="3"/><path d="M9 4V2h6v2"/><path d="M12 11v3"/></svg>
+        </div>
+        <div class="body">
+          <div class="name">心率传感器</div>
+          <div class="meta">已连接 · -42 dBm</div>
+        </div>
+        <div class="battery">
+          <span class="b"><i></i></span>38%
+        </div>
+      </div>
+      <a class="device-card" href="connect.html" style="text-decoration:none;color:inherit">
+        <div class="body"><div class="name" style="font-size:14px;color:var(--muted);font-weight:500">换一台设备</div></div>
+        <div class="go" style="color:var(--muted)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </div>
+      </a>
+    </section>
+
+    <!-- 显示 -->
+    <section class="group">
+      <div class="group-title">显示</div>
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">保持亮屏</div>
+          <div class="set-d">看着波形时不会自己灭屏</div>
+        </div>
+        <button class="switch is-on" data-key="keepAwake" aria-label="保持亮屏" aria-pressed="true"><span class="track"></span><span class="knob"></span></button>
+      </div>
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">背景网格</div>
+          <div class="set-d">1 mm 细格 + 5 mm 粗格</div>
+        </div>
+        <button class="switch is-on" data-key="grid" aria-label="背景网格" aria-pressed="true"><span class="track"></span><span class="knob"></span></button>
+      </div>
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">纵轴幅度</div>
+          <div class="set-d">10 mm/mV 是标准值，20 / 30 振幅更大更清楚</div>
+        </div>
+        <div class="seg" data-key="amp">
+          <button type="button" class="is-on">10</button>
+          <button type="button">20</button>
+          <button type="button">30</button>
+        </div>
+      </div>
+      <div class="set-row" id="orientRow" hidden>
+        <div class="set-l">
+          <div class="set-k">屏幕方向</div>
+          <div class="set-d">开发者选项 · 不跟手机自动转</div>
+        </div>
+        <div class="seg" data-key="orient">
+          <button type="button" class="is-on" data-screen="portrait">竖屏</button>
+          <button type="button" data-screen="landscape">横屏</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 提醒 -->
+    <section class="group">
+      <div class="group-title">提醒</div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">信号中断提醒</div>
+          <div class="set-d">手表断开、或者心跳停了，手机响一次</div>
+        </div>
+        <button class="switch is-on" data-key="lostAlarm" aria-label="信号中断提醒" aria-pressed="true"><span class="track"></span><span class="knob"></span></button>
+      </div>
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">声音</div>
+          <div class="set-d">提示音，响两下停；音量跟手机媒体音量走</div>
+        </div>
+        <button class="switch is-on" data-key="sound" aria-label="声音提醒" aria-pressed="true"><span class="track"></span><span class="knob"></span></button>
+      </div>
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">震动</div>
+          <div class="set-d">断线时连续震三下，之后同一原因不再反复震</div>
+        </div>
+        <button class="switch is-on" data-key="vibrate" aria-label="震动提醒" aria-pressed="true"><span class="track"></span><span class="knob"></span></button>
+      </div>
+
+      <div class="val-row">
+        <div class="k">多久没心跳算中断</div>
+        <div class="stepper" data-key="lostSec" data-min="1" data-max="10" data-step="1">
+          <button type="button" aria-label="缩短判定时间"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <span class="n">3 <small style="font-family:var(--font);font-size:12px;color:var(--muted);font-weight:500">秒</small></span>
+          <button type="button" aria-label="延长判定时间"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">试一下提醒</div>
+          <div class="set-d">点一下，听听声音、感受震动</div>
+        </div>
+        <button class="try-btn" type="button" id="tryAlarm">试一下</button>
+      </div>
+
+      <div class="set-row" style="border-bottom:0">
+        <div class="set-l">
+          <div class="set-k">心率超出范围时提醒</div>
+          <div class="set-d">低于下限或高于上限时也响一次</div>
+        </div>
+        <button class="switch" data-key="rangeAlarm" aria-label="心率超出范围时提醒" aria-pressed="false"><span class="track"></span><span class="knob"></span></button>
+      </div>
+
+      <div class="val-row">
+        <div class="k">下限</div>
+        <div class="stepper" data-key="low" data-min="30" data-max="120" data-step="5">
+          <button type="button" aria-label="减小下限"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <span class="n">50</span>
+          <button type="button" aria-label="增大下限"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
+      </div>
+      <div class="val-row">
+        <div class="k">上限</div>
+        <div class="stepper" data-key="high" data-min="60" data-max="200" data-step="5">
+          <button type="button" aria-label="减小上限"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <span class="n">120</span>
+          <button type="button" aria-label="增大上限"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
+      </div>
+
+      <div class="range-preview">
+        <div class="range-bar">
+          <div class="fill" style="left:25%;right:20%"></div>
+          <div class="mark" style="left:58.5%"></div>
+        </div>
+        <div class="range-label"><span>30</span><span>正常区间 50–120</span><span>150</span></div>
+        <div class="range-label" style="margin-top:2px"><span></span><span>当前 <b>78</b> bpm</span><span></span></div>
+      </div>
+    </section>
+
+    <!-- 关于 -->
+    <section class="group">
+      <div class="group-title">关于</div>
+      <div class="about"><span>心率接收</span><b id="appVersion">v0.1</b></div>
+      <div class="about" style="padding-top:8px"><span>最低系统要求</span><b style="font-family:var(--font)">Android 11</b></div>
+      <div class="about" id="aboutProto" style="padding-top:8px;cursor:pointer;-webkit-user-select:none;user-select:none"><span>协议</span><b style="font-family:var(--font)">蓝牙心率服务 GATT 0x180D</b></div>
+      <div id="devHint" style="display:none;padding-top:10px;font-size:12px;color:var(--muted)"></div>
+    </section>
+
+    <!-- 开发者选项（连点协议 7 次解锁后显示） -->
+    <section class="group" id="devPanel" hidden>
+      <div class="group-title" style="color:#C23A08">开发者选项</div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">假传感器</div>
+          <div class="set-d">模拟一台心率设备，用来在没有手表时测试界面</div>
+        </div>
+        <button class="switch" id="devFake" type="button" aria-pressed="false" aria-label="假传感器"><span class="track"></span><span class="knob"></span></button>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">工作日志</div>
+          <div class="set-d">记录蓝牙、扫描、连接的过程，出问题时截图给我</div>
+        </div>
+        <button class="mini-btn" id="devLogBtn" type="button">查看</button>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">手动指定心率</div>
+          <div class="set-d">把心率钉死在设定值，用来看波形和颜色对不对</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <output id="fixHrVal" style="min-width:50px;text-align:right;font-size:14px;font-weight:700;color:var(--text)">自动</output>
+          <button class="mini-btn" id="devFixHr" type="button">启用</button>
+        </div>
+      </div>
+      <div class="set-row" style="padding-top:0">
+        <input id="fixHrRange" type="range" min="30" max="200" step="1" value="75" style="width:100%;accent-color:#C23A08">
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">强制断开</div>
+          <div class="set-d">模拟手表掉线，检查断线提醒和保存弹窗</div>
+        </div>
+        <button class="mini-btn" id="devDrop" type="button">触发</button>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">心率序列测试</div>
+          <div class="set-d">自动跑 50 → 100 → 140 → 40，检查颜色和告警</div>
+        </div>
+        <button class="mini-btn" id="devSeq" type="button">开始</button>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">权限状态</div>
+          <div class="set-d" id="devPerm">点「检查」看哪些权限给了</div>
+        </div>
+        <button class="mini-btn" id="devPermBtn" type="button">检查</button>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">清空本地数据</div>
+          <div class="set-d">清掉所有设置和引导标记，等于重装一次</div>
+        </div>
+        <button class="mini-btn" id="devWipe" type="button" style="color:#C0281F">清空</button>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">设备与环境</div>
+          <div class="set-d" id="devEnv">读取中…</div>
+        </div>
+        <button class="mini-btn" id="devCopyEnv" type="button">复制</button>
+      </div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">自检与修复</div>
+          <div class="set-d">自动检查常见问题，能修的直接修，修不了的打包给我</div>
+        </div>
+        <button class="mini-btn" id="devSelfCheck" type="button">检查</button>
+      </div>
+      <div id="devSelfOut" style="display:none;padding:0 0 14px;font-size:12px;line-height:1.7;color:var(--muted)"></div>
+
+      <div class="set-row">
+        <div class="set-l">
+          <div class="set-k">关闭开发者选项</div>
+          <div class="set-d">关掉后横屏按钮、假传感器、日志全部消失</div>
+        </div>
+        <button class="mini-btn" id="devOff" type="button" style="color:#C0281F">关闭</button>
+      </div>
+    </section>
+
+
+    <section class="group" style="margin-top:26px">
+      <button class="danger-row" type="button" id="disconnect">断开这台手表</button>
+    </section>
+
+  </div>
+</main>
+
+<script>
+/* ============================================================
+   设置页的交互（不是装饰，点了要有反应）
+   状态存在 localStorage，回到这一页会恢复
+   ============================================================ */
+(function () {
+  const KEY = 'hr-settings';
+  const defaults = {
+    keepAwake: true, grid: true, amp: '10', orient: 'portrait',
+    lostAlarm: true, sound: true, vibrate: true, lostSec: 3,
+    rangeAlarm: false, low: 50, high: 120
+  };
+  let st;
+  try { st = Object.assign({}, defaults, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+  catch (e) { st = Object.assign({}, defaults); }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+
+  /* ---- 开关 ---- */
+  document.querySelectorAll('.switch[data-key]').forEach((btn) => {
+    const k = btn.dataset.key;
+    const sync = () => {
+      btn.classList.toggle('is-on', !!st[k]);
+      btn.setAttribute('aria-pressed', String(!!st[k]));
+    };
+    sync();
+    btn.addEventListener('click', () => { st[k] = !st[k]; sync(); save(); });
+  });
+
+  /* ---- 分段选择（纵轴幅度 / 屏幕方向） ---- */
+  document.querySelectorAll('.seg[data-key]').forEach((seg) => {
+    const k = seg.dataset.key;
+    const sync = () => {
+      seg.querySelectorAll('button').forEach((b) => {
+        const v = b.dataset.screen || b.textContent.trim();
+        b.classList.toggle('is-on', String(st[k]) === v);
+      });
+    };
+    sync();
+    seg.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => {
+        const v = b.dataset.screen || b.textContent.trim();
+        st[k] = v; sync(); save();
+        // 选横屏就回主界面。必须先确认开发者模式开着，否则不写标记。
+        if (k === 'orient' && v === 'landscape') {
+          let devOn = false;
+          try { devOn = localStorage.getItem('heart.dev') === '1'; } catch (e) {}
+          if (!devOn) { alert('横屏是开发者选项，先连点「协议」7 次开启'); return; }
+          try { localStorage.setItem('heart.orient', 'landscape'); } catch (e) {}
+          location.href = 'index.html';
+        }
+      });
+    });
+  });
+
+  /* ---- 版本标签：APK 里显示「安卓版」，网页预览里显示「网页预览」 ---- */
+  (function fixVersionLabel() {
+    var el = document.getElementById('appVersion');
+    if (!el) return;
+    var isApp = false;
+    try {
+      if (window.HeartNative) isApp = true;
+      else if (window.Native && window.Native.isNative) isApp = true;
+    } catch (e) { isApp = true; }
+    el.textContent = isApp ? 'v0.1 安卓版' : 'v0.1 网页预览';
+  })();
+
+  /* ============================================================
+     隐藏入口：连点「协议」那行 7 次，解锁开发者选项（含横屏）。
+     跟安卓点版本号开开发者模式一个路子。
+     ============================================================ */
+  (function devUnlock() {
+    const proto = document.getElementById('aboutProto');
+    const row = document.getElementById('orientRow');
+    const hint = document.getElementById('devHint');
+    if (!proto) return;
+
+    const NEED = 7;
+    let taps = 0, timer = null;
+
+    function isDev() {
+      try { return localStorage.getItem('heart.dev') === '1'; } catch (e) { return false; }
+    }
+
+    function applyDev() {
+      const on = isDev();
+      if (row) {
+        if (on) row.removeAttribute('hidden');
+        else row.setAttribute('hidden', '');
+      }
+      const panel = document.getElementById('devPanel');
+      if (panel) {
+        if (on) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', '');
+      }
+      if (hint) {
+        hint.style.display = on ? 'block' : 'none';
+        hint.textContent = on ? '开发者选项已启用' : '';
+      }
+    }
+
+    proto.addEventListener('click', () => {
+      if (isDev()) return;             // 已解锁就不重复计数
+      taps++;
+      const left = NEED - taps;
+      if (hint) {
+        hint.style.display = 'block';
+        hint.textContent = left > 0
+          ? ('再点 ' + left + ' 次开启开发者选项')
+          : '开发者选项已启用';
+      }
+      // 连点间隔超过 1.5 秒就重新计数
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        taps = 0;
+        if (!isDev() && hint) hint.style.display = 'none';
+      }, 1500);
+
+      if (taps >= NEED) {
+        try { localStorage.setItem('heart.dev', '1'); } catch (e) {}
+        taps = 0;
+        clearTimeout(timer);
+        applyDev();
+        // 轻微震动反馈
+        if (window.Native && window.Native.vibrate) window.Native.vibrate([40, 60, 40]);
+      }
+    });
+
+    applyDev();
+
+    /* ---------- 假传感器开关 ---------- */
+    const fakeBtn = document.getElementById('devFake');
+    function syncFake() {
+      if (!fakeBtn) return;
+      let on = false;
+      try { on = localStorage.getItem('heart.fakesensor') === '1'; } catch (e) {}
+      fakeBtn.setAttribute('aria-pressed', String(on));
+      fakeBtn.classList.toggle('is-on', on);
+    }
+    if (fakeBtn) {
+      fakeBtn.addEventListener('click', () => {
+        let on = false;
+        try { on = localStorage.getItem('heart.fakesensor') === '1'; } catch (e) {}
+        const next = !on;
+        try { localStorage.setItem('heart.fakesensor', next ? '1' : '0'); } catch (e) {}
+        syncFake();
+        if (window.Native && window.Native.vibrate) window.Native.vibrate([30]);
+      });
+      syncFake();
+    }
+
+    /* ---------- 手动指定心率（滑块，不弹窗） ---------- */
+    const fixRange = document.getElementById('fixHrRange');
+    const fixVal = document.getElementById('fixHrVal');
+    const fixBtn = document.getElementById('devFixHr');
+
+    function readFix() {
+      try {
+        const v = parseInt(localStorage.getItem('heart.fixhr') || '', 10);
+        return (!isNaN(v) && v >= 30 && v <= 200) ? v : 0;
+      } catch (e) { return 0; }
+    }
+    function syncFix() {
+      const v = readFix();
+      if (fixVal) fixVal.textContent = v ? (v + ' bpm') : '自动';
+      if (fixRange && v) fixRange.value = String(v);
+      if (fixBtn) fixBtn.textContent = v ? '停用' : '启用';
+    }
+    if (fixRange) {
+      fixRange.addEventListener('input', () => {
+        if (fixVal) fixVal.textContent = fixRange.value + ' bpm';
+      });
+      fixRange.addEventListener('change', () => {
+        const v = parseInt(fixRange.value, 10);
+        try {
+          localStorage.setItem('heart.fixhr', String(v));
+          localStorage.setItem('heart.fake', '1');
+        } catch (e) {}
+        syncFix();
+      });
+    }
+    if (fixBtn) {
+      fixBtn.addEventListener('click', () => {
+        try {
+          if (readFix()) {
+            localStorage.removeItem('heart.fixhr');
+            localStorage.removeItem('heart.fake');
+          } else {
+            const v = fixRange ? parseInt(fixRange.value, 10) : 75;
+            localStorage.setItem('heart.fixhr', String(v));
+            localStorage.setItem('heart.fake', '1');
+          }
+        } catch (e) {}
+        syncFix();
+      });
+    }
+    syncFix();
+
+    /* ---------- 强制断开（模拟掉线） ---------- */
+    const dropBtn = document.getElementById('devDrop');
+    if (dropBtn) {
+      dropBtn.addEventListener('click', () => {
+        try { localStorage.setItem('heart.drop', String(Date.now())); } catch (e) {}
+        alert('已触发。打开接收页或回到接收页就会模拟一次掉线。');
+      });
+    }
+
+    /* ---------- 心率序列测试 ---------- */
+    const seqBtn = document.getElementById('devSeq');
+    if (seqBtn) {
+      const SEQ = [50, 100, 140, 40, 75];
+      let seqTimer = null, seqAt = 0;
+
+      function stopSeq() {
+        if (seqTimer) { clearInterval(seqTimer); seqTimer = null; }
+        try {
+          localStorage.removeItem('heart.fixhr');
+          localStorage.removeItem('heart.fake');
+        } catch (e) {}
+        seqBtn.textContent = '开始';
+        if (typeof syncFix === 'function') syncFix();
+      }
+      function step() {
+        const v = SEQ[seqAt % SEQ.length];
+        try {
+          localStorage.setItem('heart.fixhr', String(v));
+          localStorage.setItem('heart.fake', '1');
+        } catch (e) {}
+        if (fixVal) fixVal.textContent = v + ' bpm';
+        if (fixRange) fixRange.value = String(v);
+        if (fixBtn) fixBtn.textContent = '停用';
+        seqBtn.textContent = v + ' bpm';
+        seqAt++;
+        if (seqAt >= SEQ.length * 2) stopSeq();
+      }
+      seqBtn.addEventListener('click', () => {
+        if (seqTimer) { stopSeq(); return; }
+        seqAt = 0;
+        step();
+        seqTimer = setInterval(step, 2500);
+      });
+    }
+
+    /* ---------- 权限状态 ---------- */
+    const permBtn = document.getElementById('devPermBtn');
+    const permEl = document.getElementById('devPerm');
+    if (permBtn) {
+      permBtn.addEventListener('click', () => {
+        var data = (window.Native && window.Native.getPermissionStatus)
+          ? window.Native.getPermissionStatus() : null;
+        if (!data) {
+          if (permEl) permEl.innerHTML = '<span style="color:#8A5200">网页环境读不到权限，装 APK 再看</span>';
+          return;
+        }
+        function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+        var rows = (data.perms||[]).map(function(p){
+          var color = p.granted ? '#1D7A3E' : (p.required ? '#C0281F' : '#8A5200');
+          var mark = p.granted ? '✓' : (p.required ? '✗ 必须给' : '○ 未给');
+          return '<span style="display:block;color:'+color+'">'+mark+' '+esc(p.label)+'</span>';
+        }).join('');
+        var e = data.env || {};
+        var envLine = '<span style="display:block;margin-top:6px;color:#5C6270;font-size:11px">'+
+          esc(e.brand||'')+' '+esc(e.model||'')+' · Android '+esc(e.androidVersion||'?')+
+          ' · 蓝牙'+(e.bluetoothOn?'已开':'未开')+'</span>';
+        if (permEl) permEl.innerHTML = rows + envLine;
+      });
+    }
+
+    /* ============================================================
+       自检与修复：跑一遍已知的常见问题，能自动修的直接修，
+       修不了的把上下文整理好，一键打包发给开发者。
+       注意：它不能改代码本身，只处理「本地状态/配置」层面的问题。
+       ============================================================ */
+    const selfBtn = document.getElementById('devSelfCheck');
+    const selfOut = document.getElementById('devSelfOut');
+    if (selfBtn) {
+      selfBtn.addEventListener('click', () => {
+        const results = [];
+        const fixes = [];
+
+        function add(level, msg, fixed) {
+          results.push({ level, msg, fixed: !!fixed });
+          if (fixed) fixes.push(msg);
+        }
+
+        /* 1. 本地存储是否还能写 */
+        try {
+          localStorage.setItem('__probe__', '1');
+          localStorage.removeItem('__probe__');
+          add('ok', '本地存储可读写');
+        } catch (e) {
+          add('err', '本地存储写不进去（可能是隐私模式或空间满）');
+        }
+
+        /* 2. 有没有残留的横屏标记，开发者没开却还留着 */
+        try {
+          let devOn = localStorage.getItem('heart.dev') === '1';
+          const orient = localStorage.getItem('heart.orient');
+          if (orient && !devOn) {
+            localStorage.removeItem('heart.orient');
+            add('warn', '残留的横屏标记（开发者已关），已清除', true);
+          } else {
+            add('ok', '屏幕方向状态正常');
+          }
+        } catch (e) {}
+
+        /* 3. 假传感器开着但心率固定值不合法 */
+        try {
+          const fake = localStorage.getItem('heart.fakesensor') === '1';
+          const fixRaw = localStorage.getItem('heart.fixhr');
+          if (fixRaw) {
+            const v = parseInt(fixRaw, 10);
+            if (isNaN(v) || v < 30 || v > 200) {
+              localStorage.removeItem('heart.fixhr');
+              add('warn', '固定心率值越界（' + fixRaw + '），已清除', true);
+            } else {
+              add('ok', '固定心率值正常（' + v + '）');
+            }
+          }
+          if (fake) add('ok', '假传感器已开启');
+        } catch (e) {}
+
+        /* 4. 日志条数是否超限 */
+        try {
+          const raw = localStorage.getItem('heart.logs');
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (list.length > 200) {
+              localStorage.setItem('heart.logs', JSON.stringify(list.slice(-200)));
+              add('warn', '日志超限（' + list.length + ' 条），已裁到 200', true);
+            } else {
+              add('ok', '日志条数正常（' + list.length + '）');
+            }
+          }
+        } catch (e) {
+          localStorage.removeItem('heart.logs');
+          add('warn', '日志数据损坏，已重置', true);
+        }
+
+        /* 5. 设置项能不能正常解析 */
+        try {
+          JSON.parse(localStorage.getItem('hr-settings') || '{}');
+          add('ok', '设置数据完整');
+        } catch (e) {
+          localStorage.removeItem('hr-settings');
+          add('warn', '设置数据损坏，已重置为默认', true);
+        }
+
+        /* 6. 权限（APK 才有） */
+        try {
+          if (window.Native && window.Native.getPermissionStatus) {
+            const d = window.Native.getPermissionStatus();
+            if (d && d.perms) {
+              const miss = d.perms.filter((p) => p.required && !p.granted);
+              if (miss.length) {
+                add('err', '缺少必需权限：' + miss.map((p) => p.label).join('、'));
+              } else {
+                add('ok', '必需权限都已授予');
+              }
+            }
+          } else {
+            add('info', '网页环境，跳过权限检查');
+          }
+        } catch (e) {}
+
+        /* 输出 */
+        const color = { ok: '#1D7A3E', warn: '#8A5200', err: '#C0281F', info: '#5C6270' };
+        const mark = { ok: '✓', warn: '!', err: '✗', info: '·' };
+        let html = results.map((r) =>
+          '<span style="display:block;color:' + (color[r.level] || '#5C6270') + '">' +
+          (mark[r.level] || '·') + ' ' + r.msg + (r.fixed ? '（已修复）' : '') + '</span>'
+        ).join('');
+        html += '<div style="margin-top:10px;display:flex;gap:8px">' +
+                '<button class="mini-btn" id="selfCopy" type="button">导出报告</button></div>';
+        if (selfOut) {
+          selfOut.style.display = 'block';
+          selfOut.innerHTML = html;
+        }
+
+        const copyBtn = document.getElementById('selfCopy');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', () => {
+            const report = '=== 心率接收 · 自检报告 ===\n' +
+              new Date().toLocaleString('zh-CN') + '\n' +
+              results.map((r) => '[' + r.level + '] ' + r.msg + (r.fixed ? '（已修复）' : '')).join('\n') +
+              '\n\n=== 工作日志 ===\n' + (localStorage.getItem('heart.logs') || '无') +
+              '\n\n=== 环境 ===\n' + envText();
+            const done = () => alert('已复制，粘给我就行');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(report).then(done).catch(() => alert(report.slice(0, 800)));
+            } else {
+              alert(report.slice(0, 800));
+            }
+          });
+        }
+
+        if (window.HRLog) {
+          HRLog('自检完成：' + results.length + ' 项，自动修复 ' + fixes.length + ' 项',
+                fixes.length ? 'warn' : 'ok');
+        }
+      });
+    }
+
+    /* ---------- 清空本地数据 ---------- */
+    const wipeBtn = document.getElementById('devWipe');
+    if (wipeBtn) {
+      wipeBtn.addEventListener('click', () => {
+        if (!confirm('清空全部本地数据？设置、引导标记、日志都会没，等于重装。')) return;
+        try {
+          // 全部清掉，包括开发者模式本身；这才叫「等于重装」
+          Object.keys(localStorage)
+            .filter((k) => k.startsWith('heart.') || k === 'hr-guide-done')
+            .forEach((k) => localStorage.removeItem(k));
+        } catch (e) {}
+        alert('已清空');
+        location.reload();
+      });
+    }
+
+    /* ---------- 设备与环境 ---------- */
+    const envEl = document.getElementById('devEnv');
+    const envBtn = document.getElementById('devCopyEnv');
+    function envText() {
+      const ua = navigator.userAgent || '';
+      const m = ua.match(/Android\s+([\d.]+)/);
+      const brand = ua.match(/;\s*([^;)]+)\s+Build/) || [];
+      const w = window.innerWidth, h = window.innerHeight;
+      const dpr = window.devicePixelRatio || 1;
+      /* 只要 HeartNative 注入过就算原生，不依赖 isNative() 返回值 */
+      let native = false;
+      try {
+        native = !!(window.HeartNative || (window.Native && window.Native.isNative));
+      } catch (e) { native = true; }
+      return [
+        '环境：' + (native ? '安卓 App' : '网页预览'),
+        '系统：Android ' + (m ? m[1] : '未知'),
+        '机型：' + (brand[1] ? brand[1].trim() : '未知'),
+        '视口：' + w + 'x' + h + ' @' + dpr.toFixed(2),
+        'UA：' + ua,
+      ].join('\n');
+    }
+    if (envEl) {
+      const lines = envText().split('\n');
+      envEl.innerHTML = lines.slice(0, 4).map((t) =>
+        '<span style="display:block">' + t.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>'
+      ).join('');
+    }
+    if (envBtn) {
+      envBtn.addEventListener('click', () => {
+        const txt = envText();
+        const done = () => alert('已复制环境信息');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(done).catch(() => alert(txt));
+        } else {
+          alert(txt);
+        }
+      });
+    }
+
+    /* ---------- 关闭开发者选项 ---------- */
+    const offBtn = document.getElementById('devOff');
+    if (offBtn) {
+      offBtn.addEventListener('click', () => {
+        try { localStorage.removeItem('heart.dev'); } catch (e) {}
+        try { localStorage.setItem('heart.fakesensor', '0'); } catch (e) {}
+        taps = 0;
+        applyDev();
+        syncFake();
+        if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
+        if (window.Native && window.Native.vibrate) window.Native.vibrate([50, 40, 50]);
+      });
+    }
+
+    /* ---------- 查看工作日志 ---------- */
+    const logBtn = document.getElementById('devLogBtn');
+    if (logBtn) {
+      logBtn.addEventListener('click', () => {
+        location.href = 'devlog.html';
+      });
+    }
+  })();
+
+  /* ---- 步进器 ---- */
+  document.querySelectorAll('.stepper[data-key]').forEach((box) => {
+    const k = box.dataset.key;
+    const min = +box.dataset.min, max = +box.dataset.max, step = +box.dataset.step;
+    const num = box.querySelector('.n');
+    const sync = () => {
+      num.firstChild.nodeValue = String(st[k]) + ' ';
+    };
+    sync();
+    const [minus, plus] = box.querySelectorAll('button');
+    const bump = (d) => {
+      st[k] = Math.max(min, Math.min(max, (Number(st[k]) || min) + d));
+      sync(); save();
+    };
+    minus.addEventListener('click', () => bump(-step));
+    plus.addEventListener('click', () => bump(step));
+  });
+
+  /* ---- 试一下提醒：Web Audio 合成两下提示音 + 浏览器震动 ---- */
+  const tryBtn = document.getElementById('tryAlarm');
+  if (tryBtn) {
+    tryBtn.addEventListener('click', () => {
+      if (st.sound) {
+        try {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) {
+            const ac = new AC();
+            const beep = (at, freq, dur) => {
+              const o = ac.createOscillator();
+              const g = ac.createGain();
+              o.type = 'sine';
+              o.frequency.value = freq;
+              g.gain.setValueAtTime(0, ac.currentTime + at);
+              g.gain.linearRampToValueAtTime(.16, ac.currentTime + at + .01);
+              g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + at + dur);
+              o.connect(g); g.connect(ac.destination);
+              o.start(ac.currentTime + at);
+              o.stop(ac.currentTime + at + dur + .02);
+            };
+            beep(0, 880, .14);
+            beep(.18, 880, .14);
+            setTimeout(() => ac.close(), 900);
+          }
+        } catch (e) { /* 浏览器不让响就算了 */ }
+      }
+      if (st.vibrate && navigator.vibrate) {
+        try { navigator.vibrate([220, 120, 220, 120, 220]); } catch (e) {}
+      }
+      tryBtn.textContent = '响过了';
+      setTimeout(() => { tryBtn.textContent = '试一下'; }, 1600);
+    });
+  }
+
+  /* ---- 断开设备 ---- */
+  const disc = document.getElementById('disconnect');
+  if (disc) {
+    disc.addEventListener('click', () => {
+      if (disc.dataset.armed) {
+        disc.textContent = '已断开';
+        disc.disabled = true;
+        setTimeout(() => { location.href = 'connect.html'; }, 600);
+        return;
+      }
+      disc.dataset.armed = '1';
+      disc.textContent = '再点一次确认断开';
+      setTimeout(() => {
+        delete disc.dataset.armed;
+        disc.textContent = '断开这台手表';
+      }, 2600);
+    });
+  }
+})();
+</script>
+
+<script src="nav.js"></script>
+
+<!-- 开发者：手动指定心率的输入弹层（不用 prompt，设计台里也能用） -->
+<div id="hrDialog" hidden style="position:fixed;inset:0;z-index:960;display:flex;align-items:center;justify-content:center;background:rgba(14,16,20,.48);padding:0 24px">
+  <div style="width:100%;max-width:300px;background:#fff;border-radius:20px;padding:22px 20px 18px;box-shadow:0 18px 50px rgba(10,12,16,.3)">
+    <div style="font-size:18px;font-weight:700;color:#121417">手动指定心率</div>
+    <div style="margin-top:6px;font-size:13px;color:#5C6270;line-height:1.6">填 30–200 之间的数字，波形的密度和颜色会跟着变。</div>
+    <input id="hrInput" type="number" min="30" max="200" inputmode="numeric"
+           style="margin-top:14px;width:100%;height:48px;border-radius:12px;border:1px solid #D9DCE1;padding:0 14px;font-size:20px;font-weight:700;color:#121417;text-align:center;outline:none">
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button type="button" id="hrCancel" style="flex:1;height:46px;border-radius:12px;background:#E9EBEF;font-size:14px;font-weight:600;color:#121417">取消</button>
+      <button type="button" id="hrOk" style="flex:1;height:46px;border-radius:12px;background:#17181C;font-size:14px;font-weight:700;color:#fff">确定</button>
+    </div>
+    <button type="button" id="hrClear" style="width:100%;height:44px;margin-top:8px;font-size:13px;font-weight:600;color:#C0281F">恢复自动</button>
+  </div>
+</div>
+</body>
+</html>
