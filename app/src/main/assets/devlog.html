@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#F2F3F5">
+<meta name="dsh-design" content="app 361x794">
+<title>工作日志 · 心率接收</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  .log-wrap {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    background: var(--bg);
+    /* 顶部要多留：状态栏 + 一点呼吸空间，别让标题贴上边缘被挖孔挡 */
+    padding: calc(var(--safe-t) + 34px) 0 calc(var(--safe-b) + 10px);
+  }
+  .log-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 16px 12px; flex-shrink: 0;
+  }
+  .log-head .back {
+    width: 44px; height: 44px; border-radius: 50%;
+    display: grid; place-items: center; color: var(--text);
+  }
+  .log-head .back svg { width: 22px; height: 22px; }
+  .log-head h1 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+
+  .log-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 10px; flex-shrink: 0;
+  }
+  .log-bar button {
+    flex: 1 1 30%; min-width: 96px; height: 44px; border-radius: var(--radius-sm);
+    background: var(--surface); border: 1px solid var(--line);
+    font-size: 13.5px; font-weight: 600; color: var(--text);
+  }
+  .log-bar button:active { transform: scale(.98); }
+  .log-bar .danger { color: #C0281F; }
+
+  .log-body {
+    flex: 1; min-height: 0; overflow-y: auto;
+    margin: 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .log-line {
+    font-family: "SF Mono", "Cascadia Mono", ui-monospace, monospace;
+    font-size: 11.5px; line-height: 1.65;
+    color: var(--text);
+    word-break: break-all;
+    white-space: pre-wrap;
+    padding: 1px 0;
+  }
+  .log-line .t { color: var(--faint); }
+  .log-line.ok   { color: #1D7A3E; }
+  .log-line.err  { color: #C0281F; }
+  .log-line.warn { color: #8A5200; }
+  .log-line.info { color: #2B5BA8; }
+
+  .log-empty {
+    text-align: center; padding: 46px 16px;
+    color: var(--muted); font-size: 13.5px; line-height: 1.8;
+  }
+
+  .log-foot {
+    padding: 10px 16px 0; flex-shrink: 0;
+    font-size: 11.5px; color: var(--faint); text-align: center;
+  }
+</style>
+<script src="crash.js"></script>
+</head>
+<body>
+
+<div class="log-wrap">
+  <div class="log-head">
+    <a class="back" href="settings.html" aria-label="返回">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </a>
+    <h1>工作日志</h1>
+  </div>
+
+  <div class="log-bar">
+    <button type="button" id="copyLog">复制全部</button>
+    <button type="button" id="exportLog">导出诊断包</button>
+    <button type="button" id="refreshLog">刷新</button>
+    <button type="button" class="danger" id="clearLog">清空</button>
+  </div>
+
+  <div class="log-body" id="logBody">
+    <div class="log-empty" id="logEmpty">
+      还没有日志。<br>
+      操作一下蓝牙扫描或连接，<br>
+      这里会记录下每一步。
+    </div>
+  </div>
+
+  <div class="log-foot" id="logFoot"></div>
+</div>
+
+<script src="native.js"></script>
+<script>
+(function () {
+  const KEY = 'heart.logs';
+  const MAX = 1000;                         // 最多留 1000 条，超出自动丢最老的
+  const body = document.getElementById('logBody');
+  const empty = document.getElementById('logEmpty');
+  const foot = document.getElementById('logFoot');
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function save(list) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(list.slice(-MAX)));
+    } catch (e) {}
+  }
+
+  function fmtTime(ms) {
+    const d = new Date(ms);
+    const p = (n) => String(n).padStart(2, '0');
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  /* 原生日志（console / JS 报错）也一起显示，标成 [原生] */
+  function nativeList() {
+    try {
+      if (window.Native && window.Native.getNativeLogs) {
+        var raw = window.Native.getNativeLogs();
+        return raw ? JSON.parse(raw) : [];
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  function render() {
+    const list = load();
+    if (!list.length) {
+      body.innerHTML = '';
+      body.appendChild(empty);
+      empty.style.display = 'block';
+      foot.textContent = '用开发者选项里的功能操作时，会自动记录';
+      return;
+    }
+    empty.style.display = 'none';
+    var nl = nativeList();
+    var merged = list.concat(nl.map(function(x){
+      return { t: x.t, msg: '[原生] ' + x.msg, level: x.level };
+    })).sort(function(a,b){ return (a.t||0) - (b.t||0); });
+    body.innerHTML = merged.map((it) => {
+      const cls = it.level || '';
+      const text = String(it.msg || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return '<div class="log-line ' + cls + '"><span class="t">[' + fmtTime(it.t) + ']</span> ' + text + '</div>';
+    }).join('');
+    // 滚到底，最新在最下面
+    body.scrollTop = body.scrollHeight;
+    foot.textContent = '共 ' + list.length + ' 条（含原生 ' + nl.length + ' 条）· 最多 ' + MAX + ' 条';
+  }
+
+  /* ----- 按钮 ----- */
+  document.getElementById('refreshLog').addEventListener('click', render);
+
+  document.getElementById('copyLog').addEventListener('click', () => {
+    const list = load();
+    if (!list.length) { alert('还没有日志'); return; }
+    const txt = list.map((it) =>
+      '[' + fmtTime(it.t) + '] ' + String(it.msg || '')).join('\n');
+    const done = () => alert('已复制，粘贴发给我就行');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done).catch(() => fallback(txt, done));
+    } else {
+      fallback(txt, done);
+    }
+  });
+
+  function fallback(txt, done) {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); }
+    catch (e) { alert('复制失败，请长按日志手动选'); }
+    ta.remove();
+  }
+
+  document.getElementById('exportLog').addEventListener('click', () => {
+    var list = load();
+    var nl = nativeList();
+    var lines = [];
+    lines.push('=== 心率接收 · 诊断包 ===');
+    lines.push('导出时间：' + new Date().toLocaleString('zh-CN'));
+    lines.push('');
+
+    /* 环境 */
+    lines.push('--- 环境 ---');
+    lines.push('UA: ' + navigator.userAgent);
+    lines.push('视口: ' + window.innerWidth + 'x' + window.innerHeight +
+               ' @' + (window.devicePixelRatio || 1));
+    lines.push('环境: ' + ((window.Native && window.Native.isNative) ? 'APK' : '网页'));
+    try {
+      if (window.Native && window.Native.getPermissionStatus) {
+        var d = window.Native.getPermissionStatus();
+        if (d) {
+          (d.perms || []).forEach(function (p) {
+            lines.push('权限 ' + p.label + '(' + p.name + '): ' + (p.granted ? '已给' : '未给') +
+                       (p.required ? ' [必需]' : ''));
+          });
+          if (d.env) {
+            lines.push('设备: ' + (d.env.brand || '') + ' ' + (d.env.model || '') +
+                       ' Android ' + (d.env.androidVersion || '?') + ' (SDK' + (d.env.sdk || '?') + ')');
+            lines.push('蓝牙: ' + (d.env.bluetoothOn ? '已开' : '未开'));
+          }
+        }
+      }
+    } catch (e) {}
+    lines.push('');
+
+    /* 业务日志 */
+    lines.push('--- 业务日志（' + list.length + ' 条）---');
+    list.forEach(function (it) {
+      lines.push('[' + fmtTime(it.t) + '] ' + String(it.msg || ''));
+    });
+    lines.push('');
+
+    /* 原生日志 */
+    lines.push('--- 原生日志/控制台（' + nl.length + ' 条）---');
+    nl.forEach(function (it) {
+      lines.push('[' + fmtTime(it.t) + '] (' + (it.level || '') + ') ' + String(it.msg || ''));
+    });
+    lines.push('');
+    lines.push('=== 结束 ===');
+
+    var txt = lines.join('\n');
+    var name = '心率接收诊断_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.txt';
+
+    /* APK 里存到相册/下载；网页里走下载 */
+    if (window.Native && window.Native.saveToGallery) {
+      /* 用文本套一个 dataURL 存，简单可靠 */
+      var enc = encodeURIComponent(txt);
+      try {
+        window.Native.saveToGallery('data:text/plain;charset=utf-8,' + enc, name);
+        alert('诊断包已保存到相册或下载目录');
+        return;
+      } catch (e) {}
+    }
+    var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    alert('诊断包已下载');
+  });
+
+  document.getElementById('clearLog').addEventListener('click', () => {
+    if (!confirm('清空全部日志？')) return;
+    save([]);
+    render();
+  });
+
+  /* ----- 对外接口：任何页面都能写日志 ----- */
+  window.HRLog = function (msg, level) {
+    const list = load();
+    list.push({ t: Date.now(), msg: String(msg), level: level || '' });
+    save(list);
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>
