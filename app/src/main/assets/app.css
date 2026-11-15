@@ -1,0 +1,148 @@
+/* ============================================================
+   心率接收 · 共用样式（所有屏共用这一份）
+   ============================================================ */
+
+html[data-theme="light"] {
+  --bg: #F2F3F5; --bg-2: #FFF; --surface: #FFF; --surface-2: #E9EBEF;
+  --line: #D9DCE1; --text: #121417; --muted: #5C6270; --faint: #5F6673;
+  --accent: #C23A08; --accent-soft: rgba(194, 58, 8, .09);
+  --tick-major: #262A31; --tick-minor: #B4B9C2;
+  --glass: rgba(255, 255, 255, .55); --glass-line: rgba(255, 255, 255, .85);
+  --ok: #1D7A3E; --warn: #8A5200; --danger: #C0281F;
+  --hr-low: #2B5BA8; --hr-high: #C23A08;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { margin: 0; padding: 0; height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  transition: background .3s, color .3s;
+}
+
+button { font-family: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+
+/* ---------- 屏容器 ---------- */
+.screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  padding: calc(var(--safe-t) + var(--top-gap) + 34px) 0 calc(var(--safe-b) + 8px);
+  opacity: 0; visibility: hidden; transform: scale(.99);
+  transition: opacity .24s var(--ease), transform .24s var(--ease), visibility .24s;
+  overflow: hidden;
+}
+.screen.is-active { opacity: 1; visibility: visible; transform: none; }
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; height: 52px; flex-shrink: 0;
+}
+.icon-btn {
+  width: 46px; height: 46px; border-radius: 50%;
+  display: grid; place-items: center;
+  transition: transform .12s var(--ease), background .18s;
+}
+.icon-btn svg { width: 22px; height: 22px; }
+/* [hidden] 必须能真正隐藏：.icon-btn / .set-row 等自带 display，会盖掉浏览器默认的 display:none */
+[hidden] { display: none !important; }
+.icon-btn:active { transform: scale(.92); }
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.glass-btn {
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .12), inset 0 1px 0 rgba(255, 255, 255, .32);
+  color: var(--text);
+}
+.glass-btn:hover { background: rgba(255, 255, 255, .16); }
+.back-btn { color: var(--text); }
+.back-btn:active { background: var(--surface-2); }
+
+/* 顶栏中间：标题 + 小状态 */
+.topbar-mid {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1; min-width: 0; padding: 0 6px; gap: 3px;
+}
+.topbar-mid .tb-title { font-size: 15px; font-weight: 600; letter-spacing: .04em; }
+
+/* ---------- 状态胶囊 ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 24px; padding: 0 9px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-family: var(--num); font-size: 11px; font-weight: 700;
+  letter-spacing: .02em; color: var(--muted);
+  white-space: nowrap; flex-shrink: 0;
+}
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.pill.is-live { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); color: var(--ok); }
+.pill.is-live .dot { background: var(--ok); animation: blink 1.6s var(--ease) infinite; }
+.pill.is-warn { border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); color: var(--warn); }
+.pill.is-warn .dot { background: var(--warn); }
+.pill .gps-label { font-family: var(--font); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .28; } }
+
+/* ---------- 大数字 ---------- */
+.big-num {
+  font-family: var(--num); font-weight: 700;
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  line-height: 1; white-space: nowrap;
+}
+
+/* ---------- 主按钮 / 次按钮 ---------- */
+.cta {
+  flex: 1; height: 54px; border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 16px; font-weight: 600; letter-spacing: .02em;
+  background: var(--btn-primary-bg); color: var(--btn-primary-fg);
+  transition: transform .12s var(--ease), opacity .18s;
+}
+.cta:active { transform: scale(.985); }
+.cta.is-on { background: #C9EFC5; color: #14331A; }
+.cta-ghost {
+  height: 54px; border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 16px; font-weight: 600;
+  background: var(--surface); color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  transition: background .15s, transform .12s var(--ease);
+}
+.cta-ghost:active { transform: scale(.985); }
+html[data-theme="light"] .cta-ghost:hover { background: var(--accent-soft); }
+
+.btn-row { display: flex; gap: 10px; padding: 10px 16px 4px; flex-shrink: 0; }
+
+/* ---------- 底部信息行（轻线条分隔，不堆卡片） ---------- */
+.info-block { padding: 0 24px; flex-shrink: 0; }
+.info-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 12px 2px; border-top: 1px solid var(--line);
+}
+.info-row:last-child { border-bottom: 1px solid var(--line); }
+.info-k { font-size: 14px; color: var(--muted); letter-spacing: .04em; }
+.info-v { font-family: var(--num); font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.info-v small { font-family: var(--font); font-size: 12px; color: var(--muted); margin-left: 3px; font-weight: 500; }
+
+/* ---------- 分隔线 ---------- */
+.hr { height: 1px; background: var(--line); border: 0; margin: 0 24px; }
+
+/* ---------- 信息行（各页通用的 key / value 排列） ---------- */
+.set-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0; border-bottom: 1px solid var(--line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
