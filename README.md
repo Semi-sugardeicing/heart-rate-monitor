@@ -8,7 +8,7 @@
 >
 > **波形不是真实心电信号。** 蓝牙心率标准只提供 BPM 一个数字，波形是按真实心率数学合成的（心率快慢会改变波形的密度和形态，但波本身不是从身体采集的电信号）。
 
-![等待页](docs/screenshot-waiting.png)
+![等待页](docs/screenshot-waiting.jpg)
 
 ## 功能
 
@@ -27,7 +27,7 @@
 
 | 引导 1/4 | 引导 3/4 · 波形 |
 |---|---|
-| ![引导](docs/screenshot-guide1.png) | ![波形](docs/screenshot-guide3.png) |
+| ![引导](docs/screenshot-guide1.jpg) | ![波形](docs/screenshot-guide3.jpg) |
 
 ## 技术栈
 
