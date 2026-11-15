@@ -1,5 +1,7 @@
 # 心率接收 · Heart Monitor
 
+<img src="docs/icon.png" width="88" align="left" hspace="12" vspace="4">
+
 用蓝牙收手表的心率，用医院监护仪的样子显示出来。
 
 安卓 App，Kotlin 原生壳 + WebView 界面。接收标准 BLE 心率服务（GATT `0x180D` / `0x2A37`）的广播，画成一张像心电图纸的监护界面。
