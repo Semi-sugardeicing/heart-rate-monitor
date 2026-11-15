@@ -1,0 +1,116 @@
+/* ============================================================
+   心率接收 · 设计变量
+   风格：浅灰纸感 + 近黑文字 + 极轻线条，少量砖橙点缀
+   图标是白底黑线，界面跟着白底黑线走，不另起一套色调
+   ============================================================ */
+
+:root {
+  /* ---------- 字体 ---------- */
+  --font: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei",
+          system-ui, -apple-system, sans-serif;
+  --num: "SF Pro Display", "Inter", "Helvetica Neue", system-ui, -apple-system, sans-serif;
+
+  /* ---------- 圆角 ---------- */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+
+  /* ---------- 间距 ---------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* ---------- 安全区 ---------- */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --top-gap: 10px;
+
+  /* ---------- 动效 ---------- */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ============================================================
+   浅色主题（默认）
+   ============================================================ */
+html[data-theme="light"] {
+  --bg: #F1F2F4;
+  --surface: #FFFFFF;
+  --surface-2: #E8E9EC;
+
+  --line: #DFDFE2;
+  --line-strong: #C9CACE;
+
+  --text: #17181C;
+  --muted: #5C6270;
+  --faint: #6E7480;
+
+  --accent: #C23A08;
+  --accent-soft: rgba(194, 58, 8, .10);
+
+  /* 状态色 */
+  --ok: #1D7A3E;
+  --warn: #9A5B00;
+  --danger: #B3261E;
+
+  /* 心电波 */
+  --ecg-line: #14151A;
+  --ecg-grid: #EBECEF;
+  --ecg-grid-major: #DEDFE3;
+
+  /* 心率色阶（数字染色） */
+  --hr-low: #2B5BA8;
+  --hr-normal: #17181C;
+  --hr-high: #C23A08;
+
+  --glass: rgba(255, 255, 255, .78);
+  --glass-line: rgba(0, 0, 0, .07);
+
+  --shadow: 0 1px 3px rgba(23, 24, 28, .05);
+  --shadow-lg: 0 8px 28px rgba(23, 24, 28, .10);
+
+  --btn-primary-bg: #17181C;
+  --btn-primary-fg: #F1F2F4;
+}
+
+/* ============================================================
+   深色主题（给以后做成浅色/深色两套留的口子，先只保证不崩）
+   ============================================================ */
+html[data-theme="dark"] {
+  --bg: #0F1013;
+  --surface: #191B1F;
+  --surface-2: #23262C;
+
+  --line: #2C2F36;
+  --line-strong: #3A3E46;
+
+  --text: #F0F1F3;
+  --muted: #A7ABB4;
+  --faint: #8A8F99;
+
+  --accent: #FF6A3D;
+  --accent-soft: rgba(255, 106, 61, .14);
+
+  --ok: #4ADE80;
+  --warn: #FBBF24;
+  --danger: #F87171;
+
+  --ecg-line: #F0F1F3;
+  --ecg-grid: #1E2127;
+  --ecg-grid-major: #262A31;
+
+  --hr-low: #7FA8F0;
+  --hr-normal: #F0F1F3;
+  --hr-high: #FF6A3D;
+
+  --glass: rgba(255, 255, 255, .09);
+  --glass-line: rgba(255, 255, 255, .16);
+
+  --shadow: none;
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, .45);
+
+  --btn-primary-bg: #F0F1F3;
+  --btn-primary-fg: #0F1013;
+}
