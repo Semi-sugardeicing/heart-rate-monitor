@@ -1,0 +1,2 @@
+-dontwarn android.bluetooth.**
+-keep class com.example.heart.** { *; }
